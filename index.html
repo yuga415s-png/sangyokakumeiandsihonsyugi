@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>産業革命と資本主義ダンジョン！</title>
+    <style>
+        body {
+            font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", sans-serif;
+            background-color: #0b0b0e;
+            color: #ffffff;
+            text-align: center;
+            margin: 0;
+            padding: 15px;
+        }
+        .container {
+            max-width: 650px;
+            margin: 0 auto;
+            background: #1c1c24;
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.9);
+            border: 2px solid #3d3d52;
+            position: relative;
+        }
+        h1 { margin: 0 0 10px 0; font-size: 20px; color: #ffd700; text-shadow: 0 0 8px #ff8c00; }
+        
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .sound-btn {
+            background: #2a2a3a; color: #ffd700; border: 1px solid #ffd700;
+            padding: 4px 10px; border-radius: 12px; font-size: 12px; cursor: pointer;
+        }
+
+        /* アイテムインベントリ */
+        .item-bar {
+            display: flex; justify-content: center; gap: 10px; margin-bottom: 10px;
+        }
+        .item-btn {
+            background: #2d3436; border: 1px solid #f1c40f; color: #f1c40f;
+            padding: 5px 10px; border-radius: 8px; font-size: 12px; cursor: pointer; font-weight: bold;
+        }
+        .item-btn:disabled { opacity: 0.4; cursor: not-allowed; border-color: #555; color: #888; }
+
+        .stage-select-screen { padding: 10px 0; }
+        .stage-card-list { display: flex; flex-direction: column; gap: 12px; margin: 15px 0; }
+        .stage-card {
+            background: #121218; border: 2px solid #3d3d52; border-radius: 10px;
+            padding: 12px 15px; display: flex; justify-content: space-between;
+            align-items: center; cursor: pointer; transition: all 0.2s;
+        }
+        .stage-card:hover:not(.locked) { border-color: #ffd700; background: #252535; }
+        .stage-card.locked { opacity: 0.5; cursor: not-allowed; border-color: #222; }
+        .stage-info { text-align: left; }
+        .stage-title { font-weight: bold; font-size: 16px; color: #fff; }
+        .stage-desc { font-size: 12px; color: #aaa; margin-top: 4px; }
+        .stage-badge { font-size: 18px; }
+
+        .status-bar {
+            display: flex; justify-content: space-between; align-items: center;
+            background: #121218; padding: 8px 15px; border-radius: 8px;
+            margin-bottom: 12px; font-size: 13px; font-weight: bold; border: 1px solid #2a2a3a;
+        }
+        .streak-count { color: #ff7675; font-size: 14px; }
+        .level-badge { background-color: #e67e22; color: white; padding: 3px 10px; border-radius: 4px; font-size: 12px; }
+
+        .stage-area {
+            position: relative; height: 210px; border-radius: 10px; overflow: hidden;
+            border: 3px solid #4a4a5e; margin-bottom: 15px; background-color: #0d0d12;
+            box-shadow: inset 0 0 40px rgba(0,0,0,0.95);
+        }
+        .wall-left, .wall-right {
+            position: absolute; top: 0; width: 35%; height: 100%;
+            background: repeating-linear-gradient(0deg, #2a221b 0px, #2a221b 15px, #1a1511 16px, #1a1511 30px);
+            z-index: 1;
+        }
+        .wall-left { left: 0; transform: perspective(200px) rotateY(45deg); transform-origin: left center; border-right: 3px solid #000; }
+        .wall-right { right: 0; transform: perspective(200px) rotateY(-45deg); transform-origin: right center; border-left: 3px solid #000; }
+        .corridor-center {
+            position: absolute; top: 0; left: 20%; width: 60%; height: 100%;
+            background: radial-gradient(circle at 50% 50%, rgba(255,150,50,0.15), transparent 80%);
+        }
+
+        .monster-wrapper { position: absolute; top: 5px; left: 50%; transform: translateX(-50%); width: 100%; z-index: 2; }
+        .monster-img { height: 135px; filter: drop-shadow(0 10px 15px rgba(0,0,0,0.9)); transition: transform 0.1s; }
+
+        .slash-effect {
+            opacity: 0; position: absolute; top: 50px; left: 50%; transform: translateX(-50%) rotate(-35deg);
+            width: 0px; height: 10px; background: linear-gradient(90deg, transparent, #ffffff, #ffea00, #ffffff, transparent);
+            box-shadow: 0 0 25px #ffea00, 0 0 35px #ffffff; z-index: 10; pointer-events: none;
+        }
+        .slash-active { animation: slashAnim 0.3s ease-out forwards; }
+        @keyframes slashAnim { 0% { opacity: 0; width: 0px; } 40% { opacity: 1; width: 280px; } 100% { opacity: 0; width: 300px; } }
+
+        .hit-flash { animation: hitAnimation 0.35s ease-out; }
+        @keyframes hitAnimation {
+            0% { filter: brightness(4) sepia(1) hue-rotate(-50deg) saturate(5); transform: translateX(-50%) scale(1.15) rotate(3deg); }
+            50% { filter: brightness(0.2); transform: translateX(-50%) scale(0.9) rotate(-3deg); }
+            100% { filter: drop-shadow(0 10px 15px rgba(0,0,0,0.9)); transform: translateX(-50%) scale(1); }
+        }
+
+        .monster-status {
+            position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 75%;
+            background: rgba(10, 10, 15, 0.9); padding: 6px 12px; border-radius: 12px; border: 1px solid #ffd700; z-index: 3;
+        }
+        .monster-name { font-weight: bold; font-size: 13px; color: #ffd700; margin-bottom: 4px; }
+        .hp-bar-bg { background: #2a2a35; height: 10px; border-radius: 5px; border: 1px solid #555; overflow: hidden; }
+        .hp-bar-fill { background: linear-gradient(90deg, #ff4757, #ff6b81); height: 100%; width: 100%; transition: width 0.4s ease-out; }
+
+        .quiz-area { background: #121218; padding: 15px; border-radius: 8px; text-align: left; border: 1px solid #2a2a3a; }
+        .question-text { font-size: 15px; font-weight: bold; margin-bottom: 12px; line-height: 1.4; color: #fff; }
+        .options { display: grid; grid-template-columns: 1fr; gap: 8px; }
+        
+        .btn {
+            background: linear-gradient(180deg, #3a4b7c, #243054); color: white; border: 1px solid #4f649e;
+            padding: 10px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; text-align: left; line-height: 1.3;
+        }
+        .btn:hover:not(:disabled) { background: linear-gradient(180deg, #4b62a3, #324475); }
+        .btn:disabled { opacity: 0.6; cursor: default; }
+
+        .immediate-exp {
+            margin-top: 12px; padding: 10px; border-radius: 6px; background: #1f1f2e; border: 1px solid #3d3d52; display: none;
+        }
+        .exp-title { font-weight: bold; font-size: 14px; margin-bottom: 5px; }
+        .exp-body { font-size: 13px; color: #ddd; line-height: 1.4; margin-bottom: 10px; }
+        .next-q-btn {
+            background: #2ed573; color: white; border: none; padding: 8px 16px; border-radius: 6px;
+            font-weight: bold; cursor: pointer; font-size: 13px; display: block; margin: 0 auto;
+        }
+
+        .chest-modal {
+            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 100; border-radius: 12px;
+            flex-direction: column; justify-content: center; align-items: center;
+        }
+        .chest-icon { font-size: 70px; animation: bounce 0.6s infinite alternate; }
+        @keyframes bounce { 0% { transform: translateY(0); } 100% { transform: translateY(-15px); } }
+        .chest-msg { font-size: 18px; color: #ffd700; font-weight: bold; margin: 15px 0; text-shadow: 0 0 8px #ff8c00; }
+        .get-item-btn { background: #e67e22; color: white; border: none; padding: 10px 20px; font-size: 14px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+
+        .clear-screen { display: none; padding: 10px 0; }
+        .action-btn {
+            background: linear-gradient(180deg, #2ed573, #1e964f); color: white; border: none; padding: 10px 20px;
+            font-size: 14px; border-radius: 8px; cursor: pointer; margin: 10px 5px 0 5px; font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="top-bar">
+        <div style="font-size: 12px; color: #aaa;">学習範囲：産業革命と資本主義</div>
+        <button class="sound-btn" onclick="toggleSound()">🔊 SOUND: <span id="soundStatus">ON</span></button>
+    </div>
+
+    <h1>⚙️ 産業革命と資本主義ダンジョン！ ⚙️</h1>
+
+    <!-- 宝箱演出モーダル -->
+    <div id="chestModal" class="chest-modal">
+        <div id="chestIcon" class="chest-icon">📦</div>
+        <div id="chestMsg" class="chest-msg">2連続正解！宝箱を発見！</div>
+        <button class="get-item-btn" id="openChestBtn" onclick="openTreasureChest()">宝箱を開ける！</button>
+    </div>
+
+    <!-- 1. ステージ選択画面 -->
+    <div id="selectScreen" class="stage-select-screen">
+        <p style="font-size: 13px; color: #aaa; margin-bottom: 10px;">復習したいステージを選択してください（各10問）</p>
+        
+        <div class="stage-card-list">
+            <div class="stage-card" id="card1" onclick="startSelectedStage(1)">
+                <div class="stage-info">
+                    <div class="stage-title">ステージ 1：語句の基礎問題（10問）</div>
+                    <div class="stage-desc">産業革命や用語（世界の工場、資本主義、マルクスなど）の基本問題</div>
+                </div>
+                <div class="stage-badge" id="badge1">☆</div>
+            </div>
+
+            <div class="stage-card locked" id="card2" onclick="startSelectedStage(2)">
+                <div class="stage-info">
+                    <div class="stage-title">ステージ 2：標準問題（10問）</div>
+                    <div class="stage-desc">社会の変化、労働環境、スラム化や社会主義の狙いを理解する問題</div>
+                </div>
+                <div class="stage-badge" id="badge2">🔒</div>
+            </div>
+
+            <div class="stage-card locked" id="card3" onclick="startSelectedStage(3)">
+                <div class="stage-info">
+                    <div class="stage-title">ステージ 3：発展・資料問題（10問）</div>
+                    <div class="stage-desc">資料（子どもの証言、イラスト、年表）の読み取りと深い知識を問う難関問題</div>
+                </div>
+                <div class="stage-badge" id="badge3">🔒</div>
+            </div>
+        </div>
+        
+        <div style="font-size: 12px; color: #888; margin-top: 15px;">
+            現在の進捗度: <span style="color:#ffd700;" id="totalStars">☆☆☆</span>
+        </div>
+    </div>
+
+    <!-- 2. ゲームプレイ画面 -->
+    <div id="gameArea" style="display: none;">
+        <div class="status-bar">
+            <button onclick="goToSelect()" style="background:#3d3d52; color:white; border:none; border-radius:4px; padding:3px 8px; font-size:11px; cursor:pointer;">◀ 戻る</button>
+            <div class="streak-count">🔥 <span id="streakNum">0</span> 連続正解</div>
+            <div><span id="levelBadge" class="level-badge">ステージ 1</span></div>
+        </div>
+
+        <!-- 所持アイテム -->
+        <div class="item-bar">
+            <button class="item-btn" id="itemTwoOptsBtn" onclick="useItemTwoOpts()">✂️ 2択にする (<span id="countTwoOpts">0</span>)</button>
+            <button class="item-btn" id="itemHintBtn" onclick="useItemHint()">💡 ヒント (<span id="countHint">0</span>)</button>
+        </div>
+
+        <div class="stage-area">
+            <div class="wall-left"></div>
+            <div class="corridor-center"></div>
+            <div class="wall-right"></div>
+            
+            <div id="slashEffect" class="slash-effect"></div>
+
+            <div class="monster-wrapper">
+                <img id="monsterImg" class="monster-img" src="" alt="モンスター">
+            </div>
+
+            <div class="monster-status">
+                <div id="monsterName" class="monster-name">モンスター名</div>
+                <div class="hp-bar-bg">
+                    <div id="hpFill" class="hp-bar-fill"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="quiz-area">
+            <div class="question-text" id="qText">問題文がここに入ります</div>
+            <div class="options" id="optionBtns"></div>
+
+            <div id="immediateExp" class="immediate-exp">
+                <div id="expTitle" class="exp-title"></div>
+                <div id="expBody" class="exp-body"></div>
+                <button class="next-q-btn" onclick="nextQuestion()">次の問題へ ▶</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. クリア画面 -->
+    <div id="clearArea" class="clear-screen">
+        <h2 style="color: #ffd700; font-size: 22px;" id="clearTitle">🎉 ステージクリア！ 🎉</h2>
+        <p id="resultMessage" style="font-size: 14px; line-height: 1.5; margin: 15px 0;"></p>
+
+        <div>
+            <button class="action-btn" id="nextBtn" onclick="nextStageAction()">次のステージへ</button>
+            <button class="action-btn" style="background:#0984e3;" onclick="goToSelect()">ステージ選択へ</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ==================== Web Audio API サウンド ====================
+let audioCtx = null;
+let soundEnabled = true;
+let bgmInterval = null;
+
+function initAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function toggleSound() {
+    soundEnabled = !soundEnabled;
+    document.getElementById("soundStatus").innerText = soundEnabled ? "ON" : "OFF";
+    if (!soundEnabled) stopBGM();
+    else playBGM('select');
+}
+
+function playSE(type) {
+    if (!soundEnabled) return;
+    initAudio();
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+
+    if (type === 'hit') {
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(300, now);
+        osc.frequency.exponentialRampToValueAtTime(60, now + 0.15);
+        gain.gain.setValueAtTime(0.3, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+        osc.start(now); osc.stop(now + 0.15);
+    } else if (type === 'miss') {
+        osc.type = 'square'; osc.frequency.setValueAtTime(130, now);
+        osc.frequency.setValueAtTime(90, now + 0.15);
+        gain.gain.setValueAtTime(0.2, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+        osc.start(now); osc.stop(now + 0.2);
+    } else if (type === 'chest') {
+        osc.type = 'triangle'; osc.frequency.setValueAtTime(440, now);
+        osc.frequency.setValueAtTime(880, now + 0.15);
+        gain.gain.setValueAtTime(0.3, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+        osc.start(now); osc.stop(now + 0.3);
+    } else if (type === 'clear') {
+        const notes = [523.25, 659.25, 783.99, 1046.50];
+        notes.forEach((freq, idx) => {
+            const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+            o.type = 'triangle'; o.connect(g); g.connect(audioCtx.destination);
+            o.frequency.setValueAtTime(freq, now + idx * 0.12);
+            g.gain.setValueAtTime(0.2, now + idx * 0.12);
+            g.gain.linearRampToValueAtTime(0.01, now + idx * 0.12 + 0.3);
+            o.start(now + idx * 0.12); o.stop(now + idx * 0.12 + 0.3);
+        });
+    }
+}
+
+function stopBGM() {
+    if (bgmInterval) { clearInterval(bgmInterval); bgmInterval = null; }
+}
+
+function playBGM(mode) {
+    if (!soundEnabled) return;
+    initAudio(); stopBGM();
+    let step = 0; let notes = []; let speed = 250;
+
+    // 産業革命風の機械的・重厚なフレーズに変更
+    if (mode === 'select') { notes = [220, 261, 293, 261]; speed = 250; }
+    else if (mode === 1) { notes = [130, 130, 196, 174, 130, 164]; speed = 200; }
+    else if (mode === 2) { notes = [110, 146, 130, 110, 164, 146]; speed = 180; }
+    else if (mode === 3) { notes = [98, 110, 130, 98, 146, 130]; speed = 150; }
+
+    bgmInterval = setInterval(() => {
+        if (!soundEnabled) return;
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+        osc.type = (mode === 'select') ? 'triangle' : 'sawtooth';
+        osc.frequency.setValueAtTime(notes[step % notes.length], now);
+        gain.gain.setValueAtTime(0.04, now);
+        gain.gain.linearRampToValueAtTime(0.001, now + (speed / 1000) * 0.8);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(now); osc.stop(now + (speed / 1000) * 0.8);
+        step++;
+    }, speed);
+}
+
+// ==================== モンスターSVG（新テーマ：スチームパンク・資本主義） ====================
+const monsterSVGs = [
+    // ステージ1: スチーム・ゴレム（蒸気機関ロボット）
+    'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160"><defs><linearGradient id="m1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23d35400"/><stop offset="100%" stop-color="%232c3e50"/></linearGradient></defs><circle cx="80" cy="80" r="70" fill="rgba(211,84,0,0.2)"/><rect x="40" y="50" width="80" height="70" rx="10" fill="url(%23m1)" stroke="%23f39c12" stroke-width="3"/><circle cx="60" cy="75" r="10" fill="%23e74c3c"/><circle cx="100" cy="75" r="10" fill="%23e74c3c"/><rect x="65" y="100" width="30" height="8" fill="%23ecf0f1"/><line x1="80" y1="20" x2="80" y2="50" stroke="%23f39c12" stroke-width="6"/><circle cx="80" cy="20" r="8" fill="%23e67e22"/><rect x="20" y="60" width="15" height="50" fill="%237f8c8d"/><rect x="125" y="60" width="15" height="50" fill="%237f8c8d"/></svg>',
+    // ステージ2: マネー・バロウ（金銭・資本の怪物）
+    'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160"><defs><linearGradient id="m2" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="%23f1c40f"/><stop offset="100%" stop-color="%2327ae60"/></linearGradient></defs><circle cx="80" cy="80" r="75" fill="rgba(46,204,113,0.2)"/><polygon points="80,15 130,50 110,130 50,130 30,50" fill="url(%23m2)" stroke="%23f39c12" stroke-width="3"/><text x="80" y="95" font-size="50" font-weight="bold" fill="%23ffffff" text-anchor="middle">£</text><circle cx="55" cy="55" r="8" fill="%23c0392b"/><circle cx="105" cy="55" r="8" fill="%23c0392b"/></svg>',
+    // ステージ3: マルクス・アルコン（思想の巨首）
+    'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160"><defs><linearGradient id="m3" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="%238e44ad"/><stop offset="100%" stop-color="%232c3e50"/></linearGradient></defs><circle cx="80" cy="80" r="75" fill="rgba(142,68,173,0.2)"/><path d="M40 40 L120 40 L130 110 L30 110 Z" fill="url(%23m3)" stroke="%239b59b6" stroke-width="3"/><path d="M30 90 Q80 150 130 90 L120 130 L40 130 Z" fill="%23ecf0f1"/><circle cx="60" cy="65" r="8" fill="%239b59b6"/><circle cx="100" cy="65" r="8" fill="%239b59b6"/><polygon points="80,20 90,35 70,35" fill="%23f1c40f"/></svg>'
+];
+
+const monsterNames = ["黒煙の機工兵 スチーム・ゴレム", "資本の狂気 マネー・バロウ", "階級の覇者 マルクス・アルコン"];
+const levelBadges = ["ステージ 1：語句の基礎", "ステージ 2：標準問題", "ステージ 3：発展・資料問題"];
+
+// ==================== 問題データ（各ステージ10問：計30問） ====================
+const questionsByLevel = {
+    // ステージ1：基礎問題（語句・用語）
+    1: [
+        { q: "18世紀後半のイギリスで始まり、生産と労働の仕組みを大きく変えた変化を何という？", options: ["産業革命", "農業革命", "市民革命", "情報革命"], ans: 0, exp: "18世紀後半のイギリスで始まり、世界へ広がりました。", hint: "「産業」が大きく変化した革命です。" },
+        { q: "産業革命のきっかけとなった、織物工場などで新しく使われ始めた動力源は？", options: ["蒸気機関", "電気モーター", "原子力", "風力"], ans: 0, exp: "蒸気機関が使われ始め、機械工場で安く大量生産できるようになりました。", hint: "水蒸気の力で動く機関です。" },
+        { q: "産業革命が進んだ結果、大量の工業製品を輸出して「世界の何」と呼ばれるようになった？", options: ["世界の工場", "世界の市場", "世界の銀行", "世界の農園"], ans: 0, exp: "イギリスは圧倒的な工業力から「世界の工場」と呼ばれました。", hint: "モノを作る場所（工場）に例えられました。" },
+        { q: "19世紀半ば以降に発展し、化学工業とともにより便利になったエネルギーは？", options: ["電気", "石炭", "薪", "天然ガス"], ans: 0, exp: "19世紀の末には化学工業が発達したほか、電気も普及するようになりました。", hint: "電球などで社会を明るくしたエネルギーです。" },
+        { q: "生産の元手となる資金を持ち、工場や機械を所有して経営を行う人を何という？", options: ["資本家", "労働者", "地主", "農奴"], ans: 0, exp: "資本（資金）を持つ経営者を「資本家」と呼びます。", hint: "「資本」を持っている人です。" },
+        { q: "資本家に雇われて賃金をもらい、工場などで働く人を何という？", options: ["労働者", "資本家", "領主", "貴族"], ans: 0, exp: "自分の労働力を提供して賃金を得る人を「労働者」と呼びます。", hint: "「労働」をする人です。" },
+        { q: "資本家が利益を目的とし、自由な生産や販売を行う経済の仕組みを何という？", options: ["資本主義", "社会主義", "封建主義", "重農主義"], ans: 0, exp: "資本を中心に自由に競争する経済体制を「資本主義」といいます。", hint: "「資本」を中心に回る主義です。" },
+        { q: "労働者が雇用と生活を守るために団結して作った組織を何という？", options: ["労働組合", "会社組合", "ギルド", "農民組合"], ans: 0, exp: "資本家に対抗し、立場を守るために労働組合が作られました。", hint: "「労働」者が集まって作る組合です。" },
+        { q: "土地や工場の「公有化」によって平打な社会を実現しようと考えた思想は？", options: ["社会主義", "資本主義", "個人主義", "帝国主義"], ans: 0, exp: "貧富の格差を解消しようとする考え方を社会主義といいます。", hint: "社会全体で平等を目指す主義です。" },
+        { q: "『資本論』などを著し、資本主義の不平等を解明して社会主義の考えを唱えた人物は？", options: ["カール・マルクス", "アダム・スミス", "エンゲルス", "ワット"], ans: 0, exp: "マルクスはドイツ出身の思想家で、社会主義運動に大きな影響を与えました。", hint: "「マル〇〇」という名前の有名思想家です。" }
+    ],
+    // ステージ2：標準問題（背景・仕組み・変化）
+    2: [
+        { q: "産業革命以前、ヨーロッパがインドから輸入して大人気となった軽くて美しい織物は？", options: ["綿織物（綿布）", "絹織物", "毛織物", "麻織物"], ans: 0, exp: "インド産の綿織物が人気となったため、イギリス国内で技師改良が進みました。", hint: "木綿（コットン）で作られた織物です。" },
+        { q: "産業革命によって、人々の働く場所はどのように変化した？", options: ["家から「工場」に変わった", "工場から「農地」に変わった", "家から「船上」に変わった", "変化はなかった"], ans: 0, exp: "手作業の家内工業から、機械のある「工場」に働く場所が集まりました。", hint: "大きな機械が設置された場所です。" },
+        { q: "蒸気機関が交通手段に応用されたことで登場した、陸上の交通機関は？", options: ["蒸気機関車（鉄道）", "自動車", "飛行機", "地下鉄"], ans: 0, exp: "蒸気機関車による鉄道が全国に広まり、大量輸送が可能になりました。", hint: "線路の上を走る機関車です。" },
+        { q: "大西洋で行われた三角貿易で、イギリスからアフリカ、アメリカを介して運ばれた主な商品は？", options: ["綿織物や武器など", "石油や石炭", "スパイスや茶", "絹織物や陶磁器"], ans: 0, exp: "イギリスからは工業製品（綿織物等）が輸出され三角貿易の中心となりました。", hint: "イギリスで大量生産された製品です。" },
+        { q: "資本主義が広がったことで生じた、社会的な最大の「問題点」は何？", options: ["資本家と労働者の間の「格差」が大きくなった", "モノが不足して物価が高騰した", "世界中で貿易が完全にストップした", "農業をする人が誰もいなくなった"], ans: 0, exp: "資本家が豊かになる一方、労働者は低賃金で苦しみ貧富の格差が広がりました。", hint: "貧富のレベルに大きな開き（格差）ができました。" },
+        { q: "不況の際、資本家が利益を守るために労働者に対して行った処置は？", options: ["賃金を下げたり、解雇（クビ）にしたりした", "賃金を２倍に増やした", "労働時間を短くして休みを与えた", "会社の株を無償で分け与えた"], ans: 0, exp: "不況になると賃金カットや解雇が行われ、労働者の生活は脅かされました。", hint: "労働者にとって厳しい処分です。" },
+        { q: "工業が盛んになった都市で、労働者が急増したことにより発生した住宅問題は？", options: ["日照や上下水道に問題がある「スラム」が形成された", "全員に豪華なマンションが支給された", "家賃が完全無料になった", "都市から人がいなくなりゴーストタウンになった"], ans: 0, exp: "住宅不足や不衛生な環境により、過密な「スラム（貧民街）」が広がりました。", hint: "不衛生で劣悪な住宅街のことです。" },
+        { q: "社会主義者が主張した「平等な社会」を作るための具体的な方法は？", options: ["土地や工場などを「公有化（みんなのもの）」にする", "全ての工場を破壊して農村に戻る", "資本家に全ての政治を任せる", "外国から借金をしてお金を配る"], ans: 0, exp: "生産手段（土地や工場）を私有ではなく「公有」にすることを唱えました。", hint: "個人の持ち物ではなく「公（みんな）」の所有にします。" },
+        { q: "マルクスが主導した、国を超えて労働者が連帯するための組織を何という？", options: ["国際組織（インターナショナル）", "国際連合", "貿易連合", "同盟国会議"], ans: 0, exp: "各国の労働者が一致団結して理想社会を目指す国際組織が作られました。", hint: "「国際（インターナショナル）」な組織です。" },
+        { q: "イギリスで1825年に世界で初めて営業運転を開始した蒸気機関車の路線は？", options: ["ストックトン・ダーリントン間", "ロンドン・パリ間", "マンチェスター・リヴァプール間", "エディンバラ・ブリストル間"], ans: 0, exp: "ストックトン・ダーリントン間で開通し、後に旅客輸送も拡大しました。", hint: "「ストックトン」から始まる路線です。" }
+    ],
+    // ステージ3：発展・資料問題（証言・図版の読み取り）
+    3: [
+        { q: "「朝3時には工場に行き、終わるのは夜の10時か11時過ぎでした」という証言からわかる労働環境は？", options: ["子どもを含め、極めて過酷な長時間労働が行われていた", "労働時間が厳しく制限され、健全だった", "シフト制で1日4時間しか働かなかった", "夜間労働は完全に禁止されていた"], ans: 0, exp: "当時の工場では、子どもや女性も10数時間に及ぶ過酷な長時間労働を強いられていました。", hint: "朝から深夜まで働かされていました。" },
+        { q: "工場で働く子どもが「5分遅刻しただけ」で受けた罰則はどんなものだった？", options: ["給料の4分の1が減らされた", "すぐにクビ（解雇）になった", "翌日の休みがもらえた", "何も罰則はなかった"], ans: 0, exp: "資料の証言にある通り、わずかな遅刻でも給料の4分の1が引かれる厳しいものでした。", hint: "給料（給料の一部）を大きく削られました。" },
+        { q: "ロンドンのスラムやテムズ川を描いた風刺画で、汚濁した川が表している当時の問題は？", options: ["環境汚染やコレラなどの伝染病の流行", "水泳大会の盛り上がり", "漁業の発展による大豊漁", "観光客の増加"], ans: 0, exp: "上下水道の未整備や工場のけむり・騒音、水質汚濁により衛生環境が悪化していました。", hint: "衛生状態の悪化や病気の危険です。" },
+        { q: "資本家が男性よりも「女性や子ども」を多く雇った理由として正しいものは？", options: ["男性よりも低い賃金で働かせることができたため", "女性や子どもの方が体が大きかったため", "法律で男性の就労が禁止されていたため", "機械の操作が男性には難しすぎたため"], ans: 0, exp: "安く雇える労働力として、多くの女性や子どもが工場で使われました。", hint: "「賃金（コスト）」に関する理由です。" },
+        { q: "マルクスの主著であり、資本主義の仕組みと不平等を批判的に分析した本は？", options: ["『資本論』", "『国富論』", "『社会契約論』", "『権利の宣言』"], ans: 0, exp: "マルクスはエンゲルスの協力を得て『資本論』を著しました。", hint: "「資本」という言葉が入る本です。" },
+        { q: "イギリスの鉄道網が1846年からの約20年間で爆発的に広まった背景にある産業は？", options: ["鉄鋼業と石炭産業", "半導体産業", "自動車産業", "石油化学産業"], ans: 0, exp: "線路や機体のための「鉄」と、燃料としての「石炭」の産業が相互に発達しました。", hint: "鉄を作る産業と、燃料を掘る産業です。" },
+        { q: "19世紀半ば、イギリスが「世界の工場」と呼ばれるほどの圧倒的地位を確立した時期はいつ頃？", options: ["19世紀半ば（1850年代頃）", "17世紀前半", "20世紀後半", "18世紀前半"], ans: 0, exp: "19世紀半ば、イギリスは万国博覧会を開くなど工業国として頂点に達しました。", hint: "1850年あたりの時期です。" },
+        { q: "資本主義国において、経済が好調な時期と不調な時期が交互に訪れる現象を何という？", options: ["景気変動（好況と不況）", "インフレーション固定化", "永久恐慌", "計画経済"], ans: 0, exp: "自由競争のもとでは好況と不況（景気変動）が繰り返し起こりました。", hint: "景気が良くなったり悪くなったりすることです。" },
+        { q: "社会主義運動が目指した「連帯」の対象は誰と誰？", options: ["国境を越えた「各国・全世界の労働者」", "各国の「資本家同士」", "貴族と地主", "国王と軍隊"], ans: 0, exp: "「万国の労働者よ、団結せよ」の言葉通り、労働者同士の国境を越えた連帯を目指しました。", hint: "虐げられていた「労働者」たちです。" },
+        { q: "産業革命が進むにつれて、人々の居住地は農村からどこへ大きく移動した？", options: ["都市（工業都市）", "海外の無人島", "山奥の集落", "漁村"], ans: 0, exp: "工場の集まる都市へ人口が集中し、急激な都市化が進みました。", hint: "工場が多く集まる場所です。" }
+    ]
+};
+
+// ==================== ゲーム状態変数 ====================
+let userProgress = JSON.parse(localStorage.getItem('dungeon_progress_v2_sangyo')) || { 1: 0, 2: 0, 3: 0 };
+let currentStage = 1;
+let currentQ = 0;
+let correctAnswersCount = 0;
+let streakCount = 0;
+
+let items = { twoOpts: 0, hint: 0 };
+
+// ==================== 画面遷移・処理 ====================
+function updateSelectScreenUI() {
+    for (let i = 1; i <= 3; i++) {
+        const card = document.getElementById(`card${i}`);
+        const badge = document.getElementById(`badge${i}`);
+        const isUnlocked = (i === 1) || (userProgress[i - 1] > 0);
+
+        if (isUnlocked) {
+            card.classList.remove('locked');
+            badge.innerText = (userProgress[i] > 0) ? "★" : "☆";
+        } else {
+            card.classList.add('locked');
+            badge.innerText = "🔒";
+        }
+    }
+    let total = 0;
+    for (let i = 1; i <= 3; i++) if (userProgress[i] > 0) total++;
+    document.getElementById("totalStars").innerText = "★".repeat(total) + "☆".repeat(3 - total);
+}
+
+function startSelectedStage(stageNum) {
+    const isUnlocked = (stageNum === 1) || (userProgress[stageNum - 1] > 0);
+    if (!isUnlocked) { alert("前のステージをクリアすると解放されます！"); return; }
+
+    currentStage = stageNum;
+    currentQ = 0;
+    correctAnswersCount = 0;
+    streakCount = 0;
+
+    document.getElementById("selectScreen").style.display = "none";
+    document.getElementById("clearArea").style.display = "none";
+    document.getElementById("gameArea").style.display = "block";
+
+    updateItemUI();
+    playBGM(currentStage);
+    loadQuestion();
+}
+
+function goToSelect() {
+    updateSelectScreenUI();
+    document.getElementById("gameArea").style.display = "none";
+    document.getElementById("clearArea").style.display = "none";
+    document.getElementById("selectScreen").style.display = "block";
+    playBGM('select');
+}
+
+function shuffleArray(array) {
+    const arr = [...array];
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
+function updateItemUI() {
+    document.getElementById("countTwoOpts").innerText = items.twoOpts;
+    document.getElementById("countHint").innerText = items.hint;
+    document.getElementById("itemTwoOptsBtn").disabled = (items.twoOpts <= 0);
+    document.getElementById("itemHintBtn").disabled = (items.hint <= 0);
+    document.getElementById("streakNum").innerText = streakCount;
+}
+
+function loadQuestion() {
+    const qData = questionsByLevel[currentStage][currentQ];
+    
+    document.getElementById("immediateExp").style.display = "none";
+    document.getElementById("qText").innerText = `${currentQ + 1}. ${qData.q}`;
+    
+    const idx = currentStage - 1;
+    document.getElementById("monsterImg").src = monsterSVGs[idx];
+    document.getElementById("monsterName").innerText = monsterNames[idx];
+    document.getElementById("levelBadge").innerText = levelBadges[idx];
+
+    const totalQ = questionsByLevel[currentStage].length;
+    const remainingHpPercent = ((totalQ - correctAnswersCount) / totalQ) * 100;
+    document.getElementById("hpFill").style.width = remainingHpPercent + "%";
+
+    const container = document.getElementById("optionBtns");
+    container.innerHTML = "";
+    
+    const shuffledOptions = shuffleArray(qData.options);
+    shuffledOptions.forEach((optText) => {
+        const btn = document.createElement("button");
+        btn.className = "btn";
+        btn.innerText = optText;
+        btn.onclick = () => checkAnswer(optText, qData.options[qData.ans], qData);
+        container.appendChild(btn);
+    });
+
+    updateItemUI();
+}
+
+function checkAnswer(selectedText, correctText, qData) {
+    const btns = document.querySelectorAll(".btn");
+    btns.forEach(b => b.disabled = true);
+
+    const monsterImg = document.getElementById("monsterImg");
+    const slashEffect = document.getElementById("slashEffect");
+    const expBox = document.getElementById("immediateExp");
+    const expTitle = document.getElementById("expTitle");
+    const expBody = document.getElementById("expBody");
+
+    let isCorrect = (selectedText === correctText);
+
+    if (isCorrect) {
+        correctAnswersCount++;
+        streakCount++;
+        playSE('hit');
+
+        slashEffect.classList.remove("slash-active"); void slashEffect.offsetWidth;
+        slashEffect.classList.add("slash-active");
+
+        monsterImg.classList.remove("hit-flash"); void monsterImg.offsetWidth;
+        monsterImg.classList.add("hit-flash");
+
+        const totalQ = questionsByLevel[currentStage].length;
+        document.getElementById("hpFill").style.width = (((totalQ - correctAnswersCount) / totalQ) * 100) + "%";
+
+        expTitle.innerHTML = "<span style='color:#2ed573;'>⚔️ 正解！</span>";
+    } else {
+        streakCount = 0;
+        playSE('miss');
+        expTitle.innerHTML = `<span style='color:#ff4757;'>❌ 不正解... (正解: ${correctText})</span>`;
+    }
+
+    expBody.innerText = qData.exp;
+    expBox.style.display = "block";
+
+    updateItemUI();
+
+    if (isCorrect && streakCount > 0 && streakCount % 2 === 0) {
+        setTimeout(() => { showChestModal(); }, 600);
+    }
+}
+
+function nextQuestion() {
+    currentQ++;
+    const totalQ = questionsByLevel[currentStage].length;
+    if (currentQ < totalQ) {
+        loadQuestion();
+    } else {
+        showStageClear();
+    }
+}
+
+function showChestModal() {
+    playSE('chest');
+    document.getElementById("chestIcon").innerText = "📦";
+    document.getElementById("chestMsg").innerText = `${streakCount}連続正解！宝箱を発見！`;
+    document.getElementById("openChestBtn").style.display = "inline-block";
+    document.getElementById("chestModal").style.display = "flex";
+}
+
+function openTreasureChest() {
+    const gotItem = (Math.random() < 0.5) ? 'twoOpts' : 'hint';
+    if (gotItem === 'twoOpts') {
+        items.twoOpts++;
+        document.getElementById("chestIcon").innerText = "✂️";
+        document.getElementById("chestMsg").innerText = "「2択にする」アイテムをゲット！";
+    } else {
+        items.hint++;
+        document.getElementById("chestIcon").innerText = "💡";
+        document.getElementById("chestMsg").innerText = "「ヒント」アイテムをゲット！";
+    }
+    document.getElementById("openChestBtn").style.display = "none";
+    updateItemUI();
+
+    setTimeout(() => {
+        document.getElementById("chestModal").style.display = "none";
+    }, 1200);
+}
+
+function useItemTwoOpts() {
+    if (items.twoOpts <= 0) return;
+    items.twoOpts--;
+    updateItemUI();
+
+    const qData = questionsByLevel[currentStage][currentQ];
+    const correctText = qData.options[qData.ans];
+    const btns = Array.from(document.querySelectorAll(".btn"));
+
+    let removed = 0;
+    btns.forEach(btn => {
+        if (btn.innerText !== correctText && removed < 2) {
+            btn.style.visibility = "hidden";
+            removed++;
+        }
+    });
+}
+
+function useItemHint() {
+    if (items.hint <= 0) return;
+    items.hint--;
+    updateItemUI();
+
+    const qData = questionsByLevel[currentStage][currentQ];
+    alert(`💡 ヒント: ${qData.hint}`);
+}
+
+function showStageClear() {
+    playSE('clear');
+    userProgress[currentStage] = 1;
+    localStorage.setItem('dungeon_progress_v2_sangyo', JSON.stringify(userProgress));
+
+    document.getElementById("gameArea").style.display = "none";
+    document.getElementById("clearArea").style.display = "block";
+
+    const totalQ = questionsByLevel[currentStage].length;
+    document.getElementById("resultMessage").innerHTML = 
+        `正解数: <b>${correctAnswersCount} / ${totalQ} 問</b><br>` +
+        `見事、${monsterNames[currentStage - 1]}を撃破した！`;
+
+    const nextBtn = document.getElementById("nextBtn");
+    if (currentStage < 3) {
+        nextBtn.style.display = "inline-block";
+    } else {
+        nextBtn.style.display = "none";
+        document.getElementById("clearTitle").innerText = "🏆 全ステージ完全制覇！ 🏆";
+    }
+}
+
+function nextStageAction() {
+    if (currentStage < 3) {
+        startSelectedStage(currentStage + 1);
+    }
+}
+
+// 初期化
+updateSelectScreenUI();
+</script>
+</body>
+</html>
